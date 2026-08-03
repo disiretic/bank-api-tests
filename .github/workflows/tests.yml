@@ -1,0 +1,39 @@
+name: Bank API Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Получить код из репозитория
+        uses: actions/checkout@v3
+
+      - name: Установить Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Установить зависимости
+        run: npm install
+
+      - name: Установить Newman
+        run: npm install -g newman
+
+      - name: Запустить банковский сервер
+        run: node server.js &
+
+      - name: Подождать пока сервер запустится
+        run: sleep 3
+
+      - name: Запустить тесты
+        run: newman run bank-api.json -e bank-env.json --delay-request 300
+
+      - name: Показать результат
+        if: always()
+        run: echo "Тесты завершены"
