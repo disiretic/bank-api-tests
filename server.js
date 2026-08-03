@@ -171,7 +171,7 @@ const server = http.createServer(async (req, res) => {
     // --------------------------------------------------
     if (method === 'GET' && path === '/accounts') {
       const accounts = db.accounts.filter(a => a.userId === user.id);
-      return sendJSON(res, 200, { accounts });
+      return sendJSON(res, 201, { accounts });
     }
 
     // --------------------------------------------------
