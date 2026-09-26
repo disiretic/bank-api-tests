@@ -1,0 +1,388 @@
+{
+  "info": {
+    "_postman_id": "40494553-f92a-4f6d-bb0f-576623b7348c",
+    "name": "GraphQL Bank — Security Tests",
+    "description": "Учебная коллекция для bank-api-tests. Проверяет ОЖИДАЕМОЕ (безопасное) поведение GraphQL-сервера (server.js, порт 3004). Сервер намеренно уязвим — большинство тестов ниже должны падать (Failed), это и есть доказательство бага. Один тест (недостаточный баланс) должен проходить (Passed) — эта проверка уже добавлена в код.\n\nПеред каждым полным прогоном перезапускайте сервер (npm start) — база данных пересоздаётся с нуля при старте, это даёт предсказуемые балансы для тестов.\n\nRace condition НЕ входит в эту коллекцию — Postman/Newman гоняют запросы последовательно, для гонки используйте отдельный race-test.js.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - Setup",
+      "item": [
+        {
+          "name": "Login as Ivan",
+          "id": "338e5f92-d5e7-4385-99d4-af295ef90955",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation Login($username: String!, $password: String!) {\n  login(username: $username, password: $password) {\n    token\n    user {\n      id\n      fullName\n      role\n    }\n  }\n}",
+                "variables": "{\n  \"username\": \"ivan_petrov\",\n  \"password\": \"Passw0rd!\"\n}"
+              }
+            },
+            "url": "{{baseUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Логин выполнен без ошибок GraphQL', () => {",
+                  "  pm.expect(jsonData.errors, JSON.stringify(jsonData.errors)).to.be.undefined;",
+                  "});",
+                  "",
+                  "pm.test('Токен получен', () => {",
+                  "  pm.expect(jsonData.data.login.token).to.be.a('string').and.not.empty;",
+                  "});",
+                  "",
+                  "if (jsonData.data && jsonData.data.login) {",
+                  "  pm.environment.set('ivanToken', jsonData.data.login.token);",
+                  "  console.log('Токен Ивана сохранён в переменную окружения ivanToken');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 - IDOR (Broken Object Level Authorization на чтение)",
+      "item": [
+        {
+          "name": "Чтение чужого счёта БЕЗ токена",
+          "id": "853a2b7c-c09b-4fe4-91cd-2e1640e638d1",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query {\n  account(id: 3) {\n    number\n    balance\n    owner {\n      fullName\n    }\n  }\n}",
+                "variables": "{}"
+              }
+            },
+            "url": "{{baseUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// ОЖИДАЕМОЕ (безопасное) поведение: без токена сервер НЕ должен",
+                  "// отдавать данные чужого счёта. Сейчас это не так — тест должен упасть,",
+                  "// это и есть баг API1:2023 Broken Object Level Authorization.",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('BUG API1: неавторизованный запрос НЕ должен вернуть чужой счёт', () => {",
+                  "  pm.expect(jsonData.data && jsonData.data.account, 'Ожидали null/ошибку, а получили данные счёта').to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Чтение любого пользователя (id=3) авторизованным Иваном",
+          "id": "4c5f0ecd-ddcd-44a3-9b9f-51e4995165e9",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ivanToken}}" }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query {\n  user(id: 3) {\n    username\n    fullName\n    role\n  }\n}",
+                "variables": "{}"
+              }
+            },
+            "url": "{{baseUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('BUG API1: обычный пользователь НЕ должен читать чужой профиль по id', () => {",
+                  "  pm.expect(jsonData.data && jsonData.data.user, 'Ожидали null/ошибку, а получили чужой профиль').to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Список ВСЕХ пользователей без проверки роли",
+          "id": "5c32ee37-951b-4c33-ad18-a6925de9f549",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ivanToken}}" }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query {\n  users {\n    id\n    username\n    role\n  }\n}",
+                "variables": "{}"
+              }
+            },
+            "url": "{{baseUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('BUG: обычный пользователь (не admin) НЕ должен получать список всех юзеров', () => {",
+                  "  pm.expect(jsonData.data && jsonData.data.users, 'Ожидали отказ, а получили полный список').to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - BOLA (нарушение авторизации в мутациях)",
+      "item": [
+        {
+          "name": "Перевод с ЧУЖОГО счёта (BOLA)",
+          "id": "793d1ebe-2db3-4c02-a48b-2a66291655aa",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ivanToken}}" }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation {\n  transfer(fromAccountId: 3, toAccountId: 1, amount: 1) {\n    id\n    amount\n  }\n}",
+                "variables": "{}"
+              }
+            },
+            "url": "{{baseUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// ОЖИДАЕМОЕ поведение: Иван не владеет счётом id=3 (это счёт Анны),",
+                  "// сервер должен вернуть ошибку авторизации. Сумма 1 — минимальна,",
+                  "// чтобы не искажать сильно баланс при повторных прогонах.",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('BUG API1: перевод с чужого счёта должен быть запрещён', () => {",
+                  "  pm.expect(jsonData.errors, 'Ожидали ошибку авторизации, а перевод прошёл успешно').to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Привязка карты к ЧУЖОМУ счёту (Mass Assignment)",
+          "id": "c3b7f7d7-0a23-4969-8a70-d36caad3d92a",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ivanToken}}" }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation {\n  createCard(accountId: 3, number: \"0000 0000 0000 0000\", cvv: \"000\", expiry: \"01/30\") {\n    id\n  }\n}",
+                "variables": "{}"
+              }
+            },
+            "url": "{{baseUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('BUG API3: нельзя привязывать карту к чужому accountId', () => {",
+                  "  pm.expect(jsonData.errors, 'Ожидали ошибку, а карта привязалась к чужому счёту').to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Бизнес-логика (проверка баланса)",
+      "item": [
+        {
+          "name": "Перевод суммы БОЛЬШЕ остатка (свой счёт)",
+          "id": "e5eeeb48-40d7-499e-95e8-2dd79b89332a",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ivanToken}}" }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation {\n  transfer(fromAccountId: 1, toAccountId: 3, amount: 999999999) {\n    id\n  }\n}",
+                "variables": "{}"
+              }
+            },
+            "url": "{{baseUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Этот тест ДОЛЖЕН проходить (Passed) — проверка баланса уже добавлена",
+                  "// в код сервера. В отличие от остальных кейсов в этой коллекции,",
+                  "// он демонстрирует исправленный баг, а не найденный.",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('OK: перевод суммы больше остатка отклоняется', () => {",
+                  "  pm.expect(jsonData.errors, 'Ожидали ошибку \"Недостаточно средств\"').to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - SQL Injection",
+      "item": [
+        {
+          "name": "Baseline: обычный поиск (контрольный запрос)",
+          "id": "803140c9-db7a-48e8-9291-7698482fa38f",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ivanToken}}" }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query {\n  searchTransactions(query: \"НесуществующийТекст12345\") {\n    id\n  }\n}",
+                "variables": "{}"
+              }
+            },
+            "url": "{{baseUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('Поиск несуществующей фразы возвращает пустой список', () => {",
+                  "  pm.expect(jsonData.data.searchTransactions).to.be.an('array').that.is.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SQL Injection payload — ' OR '1'='1",
+          "id": "e112cf37-4c2a-492a-b80f-7b89d8b312ce",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ivanToken}}" }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query {\n  searchTransactions(query: \"' OR '1'='1\") {\n    id\n  }\n}",
+                "variables": "{}"
+              }
+            },
+            "url": "{{baseUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Сравниваем с baseline-запросом: контрольный поиск по несуществующей",
+                  "// фразе вернул пустой список. Инъекция при этом возвращает ВСЕ записи —",
+                  "// разница в поведении и есть доказательство уязвимости.",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('BUG API8/Injection: инъекция не должна возвращать все транзакции', () => {",
+                  "  const count = jsonData.data && jsonData.data.searchTransactions ? jsonData.data.searchTransactions.length : 0;",
+                  "  pm.expect(count, `Вернулось ${count} записей вместо ожидаемого пустого списка`).to.equal(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 - Security Misconfiguration",
+      "item": [
+        {
+          "name": "Introspection доступна без авторизации",
+          "id": "8d2403ce-b544-4bd8-915f-bc3d8a022774",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query {\n  __schema {\n    types {\n      name\n    }\n  }\n}",
+                "variables": "{}"
+              }
+            },
+            "url": "{{baseUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('BUG API8: интроспекция должна быть отключена вне авторизации', () => {",
+                  "  pm.expect(jsonData.data, 'Схема выдана без каких-либо ограничений').to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "event": [],
+  "variable": []
+}
