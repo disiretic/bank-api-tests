@@ -1,0 +1,292 @@
+{
+  "info": {
+    "_postman_id": "0927384a-9994-4449-b339-8231fa565466",
+    "name": "Bank API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "34558439"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Проверяем статус-код\r",
+                  "pm.test(\"Статус-код 200\", function() {\r",
+                  "    pm.response.to.have.status(200);\r",
+                  "});\r",
+                  "\r",
+                  "// Проверяем что в ответе есть user_id и otp_hint\r",
+                  "pm.test(\"Ответ содержит user_id\", function() {\r",
+                  "    const json = pm.response.json();\r",
+                  "    pm.expect(json).to.have.property(\"user_id\");\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Ответ содержит otp_hint\", function() {\r",
+                  "    const json = pm.response.json();\r",
+                  "    pm.expect(json).to.have.property(\"otp_hint\");\r",
+                  "});\r",
+                  "\r",
+                  "// Автоматически сохраняем user_id в переменную окружения\r",
+                  "const json = pm.response.json();\r",
+                  "pm.environment.set(\"userId\", json.user_id);\r",
+                  "\r",
+                  "// Извлекаем OTP из подсказки и сохраняем\r",
+                  "const otpMatch = json.otp_hint.match(/\\d{6}/);\r",
+                  "if (otpMatch) {\r",
+                  "    pm.environment.set(\"otp\", otpMatch[0]);\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"email\": \"ivan@bank.ru\",\r\n  \"password\": \"ivan123\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Статус-код 200\", function() {\r",
+                  "    pm.response.to.have.status(200);\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Ответ содержит токен\", function() {\r",
+                  "    const json = pm.response.json();\r",
+                  "    pm.expect(json).to.have.property(\"token\");\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Ответ содержит данные пользователя\", function() {\r",
+                  "    const json = pm.response.json();\r",
+                  "    pm.expect(json.user).to.have.property(\"email\");\r",
+                  "    pm.expect(json.user).to.have.property(\"role\");\r",
+                  "});\r",
+                  "\r",
+                  "// Автоматически сохраняем токен\r",
+                  "const json = pm.response.json();\r",
+                  "pm.environment.set(\"token\", json.token);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"user_id\": {{userId}},\r\n  \"otp\": \"{{otp}}\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verify-otp"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Accounts",
+      "item": [
+        {
+          "name": "Get Accounts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Статус-код 200\", function() {\r",
+                  "    pm.response.to.have.status(200);\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Ответ содержит массив счетов\", function() {\r",
+                  "    const json = pm.response.json();\r",
+                  "    pm.expect(json.accounts).to.be.an(\"array\");\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"У Ивана три счёта\", function() {\r",
+                  "    const json = pm.response.json();\r",
+                  "    pm.expect(json.accounts).to.have.lengthOf(3);\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Первый счёт в рублях\", function() {\r",
+                  "    const json = pm.response.json();\r",
+                  "    pm.expect(json.accounts[0].currency).to.equal(\"RUB\");\r",
+                  "});\r",
+                  "\r",
+                  "// Сохраняем номера счетов для следующих запросов\r",
+                  "const json = pm.response.json();\r",
+                  "pm.environment.set(\"fromAccount\", json.accounts[0].number);\r",
+                  "pm.environment.set(\"initialBalance\", json.accounts[0].balance);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "accounts"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transfers",
+      "item": [
+        {
+          "name": "Make Transfer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Статус-код 201\", function() {\r",
+                  "    pm.response.to.have.status(201);\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Сообщение об успехе\", function() {\r",
+                  "    const json = pm.response.json();\r",
+                  "    pm.expect(json.message).to.include(\"успешно\");\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Баланс уменьшился на сумму перевода\", function() {\r",
+                  "    const json = pm.response.json();\r",
+                  "    const initialBalance = pm.environment.get(\"initialBalance\");\r",
+                  "    pm.expect(json.new_balance).to.equal(initialBalance - 1000);\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Транзакция содержит корректные данные\", function() {\r",
+                  "    const json = pm.response.json();\r",
+                  "    pm.expect(json.transaction.amount).to.equal(1000);\r",
+                  "    pm.expect(json.transaction.status).to.equal(\"success\");\r",
+                  "});\r",
+                  "\r",
+                  "// Сохраняем id транзакции\r",
+                  "const json = pm.response.json();\r",
+                  "pm.environment.set(\"transactionId\", json.transaction.id);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"from_account\": \"{{fromAccount}}\",\r\n  \"to_account\": \"40817810000000000002\",\r\n  \"amount\": 1000\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transfers"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

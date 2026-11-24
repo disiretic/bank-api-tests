@@ -1,0 +1,13 @@
+{
+  "name": "bank-api-tests",
+  "version": "1.0.0",
+  "description": "Banking API tests with Newman",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "newman run bank-api.json -e bank-env.json --delay-request 300"
+  },
+  "dependencies": {
+    "ws": "^8.0.0"
+  }
+}

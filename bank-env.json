@@ -1,0 +1,52 @@
+{
+	"id": "55023aaf-0553-41e2-86a4-bb8fb95eb759",
+	"name": "Bank Local",
+	"values": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "otp",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "fromAccount",
+			"value": "",
+			"type": "any",
+			"enabled": true
+		},
+		{
+			"key": "initialBalance",
+			"value": "",
+			"type": "any",
+			"enabled": true
+		},
+		{
+			"key": "transactionId",
+			"value": "",
+			"type": "any",
+			"enabled": true
+		}
+	],
+	"color": 300,
+	"_postman_variable_scope": "environment",
+	"_postman_exported_at": "2026-07-31T12:26:31.308Z",
+	"_postman_exported_using": "Postman/12.21.7"
+}
